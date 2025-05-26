@@ -12,6 +12,9 @@ import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.util.LinkedList;
 
+import static java.lang.Thread.sleep;
+
+
 public class FishingBot {
 
     static {
@@ -29,37 +32,44 @@ public class FishingBot {
             System.err.println("Не удалось загрузить шаблон: " + templatePath);
             return;
         }
-        long lastBobberTime = System.currentTimeMillis();//todo
+        boolean running = true;
 
-        while (true) {
-            BufferedImage screen = robot.createScreenCapture(new Rectangle(Toolkit.getDefaultToolkit().getScreenSize()));
-            Mat screenMat = bufferedImageToMat(screen);
+        while (running) {
+            long startTime = System.currentTimeMillis();
+            Point bobberPoint = null;
+
+            // Пытаемся найти поплавок в течение 10 секунд
+            while (System.currentTimeMillis() - startTime < 10_000 && bobberPoint == null) {
+                BufferedImage screen = robot.createScreenCapture(new Rectangle(Toolkit.getDefaultToolkit().getScreenSize()));
+                Mat screenMat = bufferedImageToMat(screen);
+                Mat filtered = filterWaterColor(screenMat);
+
+                bobberPoint = findBobber(filtered, template);
+
+                if (bobberPoint != null) {
+                    System.out.println("Поплавок найден в: " + bobberPoint);
+                    sleep(1000);
+
+                    if (detectRealBite(robot, bobberPoint)) {
+                        System.out.println("Клёв! Выполняю подсечку...");
+                        robot.mouseMove((int) bobberPoint.x, (int) bobberPoint.y);
+                        robot.mousePress(InputEvent.BUTTON3_DOWN_MASK); // todo Button1 & Button3 (Актуал/Ката)
+                        robot.mouseRelease(InputEvent.BUTTON3_DOWN_MASK);
+                        sleep(3000); // пауза после подсечки
 
 
-            Mat filtered = filterWaterColor(screenMat);
-
-            Point bobberPoint = matchTemplate(filtered, template);
-
-            if (bobberPoint != null) {
-                System.out.println("Поплавок найден в: " + bobberPoint);
-                lastBobberTime = System.currentTimeMillis();// todo
-
-                if (detectRealBite(robot, bobberPoint)) {
-                    System.out.println("Клёв! Выполняю подсечку...");
-                    robot.mouseMove((int) bobberPoint.x, (int) bobberPoint.y);
-                    robot.mousePress(InputEvent.BUTTON1_DOWN_MASK); // todo Button1 & Button3 (Актуал/Ката)
-                    robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
-                    Thread.sleep(3000); // пауза после подсечки
-
-
-                    System.out.println("Забрасываю удочку ...");
+                        System.out.println("Забрасываю удочку ...");
+                        robot.keyPress(KeyEvent.VK_E);
+                        robot.keyRelease(KeyEvent.VK_E);
+                        sleep(4000); // todo Пауза перед сканом
+                    }
+                } else {
+                    // Поплавок не найден за 10 секунд — считаем, что рыбалка прервана
+                    System.out.println("Поплавок не найден за 10 секунд. Закидываю удочку заново клавишей E...");
                     robot.keyPress(KeyEvent.VK_E);
                     robot.keyRelease(KeyEvent.VK_E);
-                    Thread.sleep(4000); // todo Пауза перед сканом
+                    sleep(4000); // пауза перед новым поиском
                 }
-            } else {
-                System.out.println("Поплавок не найден. Повтор через 2 секунды...");
-                Thread.sleep(2000);
             }
         }
     }
@@ -81,7 +91,7 @@ public class FishingBot {
         return result;
     }
 
-    public static Point matchTemplate(Mat screen, Mat template) {
+    public static Point findBobber(Mat screen, Mat template) {
         int resultCols = screen.cols() - template.cols() + 1;
         int resultRows = screen.rows() - template.rows() + 1;
 
@@ -90,10 +100,12 @@ public class FishingBot {
         Mat result = new Mat(resultRows, resultCols, CvType.CV_32FC1);
         Imgproc.matchTemplate(screen, template, result, Imgproc.TM_CCOEFF_NORMED);
 
+
         Core.MinMaxLocResult mmr = Core.minMaxLoc(result);
 
         if (mmr.maxVal >= 0.5) {
-            return new Point(mmr.maxLoc.x + template.width() / 2, mmr.maxLoc.y + template.height() / 2);
+            return new Point(mmr.maxLoc.x + (double) template.width() / 2,
+                    mmr.maxLoc.y + (double) template.height() / 2);
         }
 
         return null;
@@ -115,7 +127,7 @@ public class FishingBot {
         long startTime = System.currentTimeMillis();
 
         while (System.currentTimeMillis() - startTime < 7000) {
-            Thread.sleep(150);
+            sleep(150);
 
             Mat currentFrame = bufferedImageToMat(robot.createScreenCapture(splashZone));
             Mat grayCurrent = new Mat();
