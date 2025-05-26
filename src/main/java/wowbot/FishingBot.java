@@ -22,7 +22,7 @@ public class FishingBot {
     }
 
     public static void main(String[] args) throws Exception {
-        System.out.println("FishingBot PRO запущен!");
+        System.out.println("FishingBot  запущен!");
 
         Robot robot = new Robot();
         String templatePath = "C://Users/aonyk/wskyprjct/Lessons/FB/src/main/resources/bober.png";
@@ -38,7 +38,6 @@ public class FishingBot {
             long startTime = System.currentTimeMillis();
             Point bobberPoint = null;
 
-            // Пытаемся найти поплавок в течение 10 секунд
             while (System.currentTimeMillis() - startTime < 10_000 && bobberPoint == null) {
                 BufferedImage screen = robot.createScreenCapture(new Rectangle(Toolkit.getDefaultToolkit().getScreenSize()));
                 Mat screenMat = bufferedImageToMat(screen);
@@ -55,7 +54,7 @@ public class FishingBot {
                         robot.mouseMove((int) bobberPoint.x, (int) bobberPoint.y);
                         robot.mousePress(InputEvent.BUTTON3_DOWN_MASK); // todo Button1 & Button3 (Актуал/Ката)
                         robot.mouseRelease(InputEvent.BUTTON3_DOWN_MASK);
-                        sleep(3000); // пауза после подсечки
+                        sleep(3000); // пауза после подсечки todo изменить
 
 
                         System.out.println("Забрасываю удочку ...");
@@ -64,11 +63,11 @@ public class FishingBot {
                         sleep(4000); // todo Пауза перед сканом
                     }
                 } else {
-                    // Поплавок не найден за 10 секунд — считаем, что рыбалка прервана
+
                     System.out.println("Поплавок не найден за 10 секунд. Закидываю удочку заново клавишей E...");
                     robot.keyPress(KeyEvent.VK_E);
                     robot.keyRelease(KeyEvent.VK_E);
-                    sleep(4000); // пауза перед новым поиском
+                    sleep(4000); // пауза перед новым поиском todo изменить
                 }
             }
         }
