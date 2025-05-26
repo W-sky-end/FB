@@ -19,7 +19,7 @@ import static java.lang.Thread.sleep;
 public class FishingBot {
 
     static {
-        System.load("C:\\Users\\aonyk\\Downloads\\opencv\\build\\java\\x64\\opencv_java454.dll");
+        System.load("C:\\Users\\opencv\\build\\java\\x64\\opencv_java454.dll");
     }
 
     public static void main(String[] args) throws Exception {
@@ -27,7 +27,7 @@ public class FishingBot {
 
         Robot robot = new Robot();
         Random random = new Random();
-        String templatePath = "C://Users/aonyk/wskyprjct/Lessons/FB/src/main/resources/bobber.png";
+        String templatePath = "C://Users//FB/src/main/resources/bobber.png";
 
         Mat template = Imgcodecs.imread(templatePath);
         if (template.empty()) {
