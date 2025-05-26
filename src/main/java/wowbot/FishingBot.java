@@ -11,6 +11,7 @@ import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.util.LinkedList;
+import java.util.Random;
 
 import static java.lang.Thread.sleep;
 
@@ -25,7 +26,8 @@ public class FishingBot {
         System.out.println("FishingBot  запущен!");
 
         Robot robot = new Robot();
-        String templatePath = "C://Users/aonyk/wskyprjct/Lessons/FB/src/main/resources/bober.png";
+        Random random = new Random();
+        String templatePath = "C://Users/aonyk/wskyprjct/Lessons/FB/src/main/resources/bobber.png";
 
         Mat template = Imgcodecs.imread(templatePath);
         if (template.empty()) {
@@ -39,6 +41,7 @@ public class FishingBot {
             Point bobberPoint = null;
 
             while (System.currentTimeMillis() - startTime < 10_000 && bobberPoint == null) {
+                Thread.sleep(500 + random.nextInt(700)); //
                 BufferedImage screen = robot.createScreenCapture(new Rectangle(Toolkit.getDefaultToolkit().getScreenSize()));
                 Mat screenMat = bufferedImageToMat(screen);
                 Mat filtered = filterWaterColor(screenMat);
@@ -47,27 +50,40 @@ public class FishingBot {
 
                 if (bobberPoint != null) {
                     System.out.println("Поплавок найден в: " + bobberPoint);
-                    sleep(1000);
+                    Thread.sleep(800 + random.nextInt(500)); //todo рандом перед нахождением поплавка(человеческий фактор)
 
                     if (detectRealBite(robot, bobberPoint)) {
-                        System.out.println("Клёв! Выполняю подсечку...");
-                        robot.mouseMove((int) bobberPoint.x, (int) bobberPoint.y);
-                        robot.mousePress(InputEvent.BUTTON3_DOWN_MASK); // todo Button1 & Button3 (Актуал/Ката)
-                        robot.mouseRelease(InputEvent.BUTTON3_DOWN_MASK);
-                        sleep(3000); // пауза после подсечки todo изменить
-
+                        if (random.nextInt(10) == 0) {
+                            System.out.println("Задумался.");
+                            Thread.sleep(889 + random.nextInt(1250)); // задумался
+                        }
+                        if (random.nextInt(15) == 0) {
+                            System.out.println("Пропускаю клёв ."); // отвлекся
+                        } else {
+                            System.out.println("Клёв! Выполняю подсечку...");
+                            robot.mouseMove((int) bobberPoint.x, (int) bobberPoint.y);
+                            robot.mousePress(InputEvent.BUTTON3_DOWN_MASK); // todo Button1 & Button3 (Актуал/Ката)
+                            robot.mouseRelease(InputEvent.BUTTON3_DOWN_MASK);
+                            Thread.sleep(2494 + random.nextInt(1400)); //заброс
+                        }
+                        if (random.nextInt(20) == 0) {
+                            System.out.println("Чуть-чуть двигаю камерой как игрок...");
+                            robot.keyPress(KeyEvent.VK_RIGHT); // кнопка движения камеры
+                            Thread.sleep(100 + random.nextInt(300));
+                            robot.keyRelease(KeyEvent.VK_RIGHT);
+                        }
 
                         System.out.println("Забрасываю удочку ...");
                         robot.keyPress(KeyEvent.VK_E);
                         robot.keyRelease(KeyEvent.VK_E);
-                        sleep(4000); // todo Пауза перед сканом
+                        Thread.sleep(3000 + new Random().nextInt(2000));// todo Пауза перед сканом
                     }
                 } else {
 
                     System.out.println("Поплавок не найден за 10 секунд. Закидываю удочку заново клавишей E...");
                     robot.keyPress(KeyEvent.VK_E);
                     robot.keyRelease(KeyEvent.VK_E);
-                    sleep(4000); // пауза перед новым поиском todo изменить
+                    Thread.sleep(4000 + random.nextInt(2000));
                 }
             }
         }
