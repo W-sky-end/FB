@@ -16,6 +16,8 @@ import java.util.Random;
 import static java.lang.Thread.sleep;
 
 
+
+
 public class FishingBot {
 
     static {
@@ -23,11 +25,10 @@ public class FishingBot {
     }
 
     public static void main(String[] args) throws Exception {
-        System.out.println("FishingBot  запущен!");
 
         Robot robot = new Robot();
         Random random = new Random();
-        String templatePath = "C://Users//FB/src/main/resources/bobber.png";
+        String templatePath = "C://Users//Lessons/FB/src/main/resources/bobber.png";
 
         Mat template = Imgcodecs.imread(templatePath);
         if (template.empty()) {
@@ -61,7 +62,11 @@ public class FishingBot {
                             System.out.println("Пропускаю клёв ."); // отвлекся
                         } else {
                             System.out.println("Клёв! Выполняю подсечку...");
-                            robot.mouseMove((int) bobberPoint.x, (int) bobberPoint.y);
+                            java.awt.Point currentMouse = MouseInfo.getPointerInfo().getLocation();
+                            smoothMouseMove(robot,
+                                    (int) currentMouse.getX(), (int) currentMouse.getY(),
+                                    (int) bobberPoint.x, (int) bobberPoint.y,
+                                    20, 5, 10); // 20 скорость курсора
                             robot.mousePress(InputEvent.BUTTON3_DOWN_MASK); // todo Button1 & Button3 (Актуал/Ката)
                             robot.mouseRelease(InputEvent.BUTTON3_DOWN_MASK);
                             Thread.sleep(2494 + random.nextInt(1400)); //заброс
@@ -190,5 +195,19 @@ public class FishingBot {
         Mat mat = new Mat(bi.getHeight(), bi.getWidth(), CvType.CV_8UC3);
         mat.put(0, 0, data);
         return mat;
+    }
+    public static void smoothMouseMove(Robot robot, int startX, int startY, int endX, int endY, int steps,
+                                       int minDelay, int maxDelay) throws InterruptedException {
+        double dx = (double) (endX - startX) / steps;
+        double dy = (double) (endY - startY) / steps;
+
+        Random random = new Random();
+
+        for (int i = 1; i <= steps; i++) {
+            int x = (int) (startX + dx * i);
+            int y = (int) (startY + dy * i);
+            robot.mouseMove(x, y);
+            Thread.sleep(minDelay + random.nextInt(maxDelay - minDelay + 1));
+        }
     }
 }
