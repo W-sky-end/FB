@@ -10,13 +10,11 @@ import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
-import java.util.LinkedList;
-import java.util.Random;
+import java.io.File;
+import java.util.*;
+import java.util.List;
 
 import static java.lang.Thread.sleep;
-
-
-
 
 public class FishingBot {
 
@@ -25,16 +23,16 @@ public class FishingBot {
     }
 
     public static void main(String[] args) throws Exception {
-
         Robot robot = new Robot();
         Random random = new Random();
-        String templatePath = "C://Users//Lessons/FB/src/main/resources/bobber.png";
+        String bobberFolderPath = "C://Users/FB/src/main/resources/bobbers/";
 
-        Mat template = Imgcodecs.imread(templatePath);
-        if (template.empty()) {
-            System.err.println("Не удалось загрузить шаблон: " + templatePath);
+        List<Mat> templates = loadBobberTemplatesFromFolder(bobberFolderPath);
+        if (templates.isEmpty()) {
+            System.err.println("Не удалось загрузить ни одного шаблона поплавка из: " + bobberFolderPath);
             return;
         }
+
         boolean running = true;
 
         while (running) {
@@ -47,7 +45,7 @@ public class FishingBot {
                 Mat screenMat = bufferedImageToMat(screen);
                 Mat filtered = filterWaterColor(screenMat);
 
-                bobberPoint = findBobber(filtered, template);
+                bobberPoint = findBobber(filtered, templates);
 
                 if (bobberPoint != null) {
                     System.out.println("Поплавок найден в: " + bobberPoint);
@@ -81,10 +79,9 @@ public class FishingBot {
                         System.out.println("Забрасываю удочку ...");
                         robot.keyPress(KeyEvent.VK_E);
                         robot.keyRelease(KeyEvent.VK_E);
-                        Thread.sleep(3000 + new Random().nextInt(2000));// todo Пауза перед сканом
+                        Thread.sleep(3000 + new Random().nextInt(2000)); // todo Пауза перед сканом
                     }
                 } else {
-
                     System.out.println("Поплавок не найден за 10 секунд. Закидываю удочку заново клавишей E...");
                     robot.keyPress(KeyEvent.VK_E);
                     robot.keyRelease(KeyEvent.VK_E);
@@ -92,6 +89,53 @@ public class FishingBot {
                 }
             }
         }
+    }
+
+    public static List<Mat> loadBobberTemplatesFromFolder(String folderPath) {
+        List<Mat> templates = new ArrayList<>();
+        File folder = new File(folderPath);
+        if (!folder.exists() || !folder.isDirectory()) {
+            System.err.println("Папка с шаблонами не найдена: " + folderPath);
+            return templates;
+        }
+
+        for (File file : Objects.requireNonNull(folder.listFiles())) {
+            if (file.getName().toLowerCase().endsWith(".png")) {
+                Mat template = Imgcodecs.imread(file.getAbsolutePath());
+                if (!template.empty()) {
+                    templates.add(template);
+                    System.out.println("Загружен шаблон: " + file.getName());
+                }
+            }
+        }
+        return templates;
+    }
+
+    public static Point findBobber(Mat screen, List<Mat> templates) {
+        double bestMatchVal = 0;
+        Point bestPoint = null;
+
+        for (Mat template : templates) {
+            int resultCols = screen.cols() - template.cols() + 1;
+            int resultRows = screen.rows() - template.rows() + 1;
+
+            if (resultCols <= 0 || resultRows <= 0) continue;
+
+            Mat result = new Mat(resultRows, resultCols, CvType.CV_32FC1);
+            Imgproc.matchTemplate(screen, template, result, Imgproc.TM_CCOEFF_NORMED);
+
+            Core.MinMaxLocResult mmr = Core.minMaxLoc(result);
+
+            if (mmr.maxVal > bestMatchVal && mmr.maxVal >= 0.5) {
+                bestMatchVal = mmr.maxVal;
+                bestPoint = new Point(
+                        mmr.maxLoc.x + (double) template.width() / 2,
+                        mmr.maxLoc.y + (double) template.height() / 2
+                );
+            }
+        }
+
+        return bestPoint;
     }
 
     public static Mat filterWaterColor(Mat image) {
@@ -111,26 +155,6 @@ public class FishingBot {
         return result;
     }
 
-    public static Point findBobber(Mat screen, Mat template) {
-        int resultCols = screen.cols() - template.cols() + 1;
-        int resultRows = screen.rows() - template.rows() + 1;
-
-        if (resultCols <= 0 || resultRows <= 0) return null;
-
-        Mat result = new Mat(resultRows, resultCols, CvType.CV_32FC1);
-        Imgproc.matchTemplate(screen, template, result, Imgproc.TM_CCOEFF_NORMED);
-
-
-        Core.MinMaxLocResult mmr = Core.minMaxLoc(result);
-
-        if (mmr.maxVal >= 0.5) {
-            return new Point(mmr.maxLoc.x + (double) template.width() / 2,
-                    mmr.maxLoc.y + (double) template.height() / 2);
-        }
-
-        return null;
-    }
-
     public static boolean detectRealBite(Robot robot, Point bobberPoint) throws InterruptedException {
         Rectangle splashZone = new Rectangle(
                 (int) bobberPoint.x - 40,
@@ -143,7 +167,6 @@ public class FishingBot {
         Imgproc.cvtColor(prevFrame, grayPrev, Imgproc.COLOR_BGR2GRAY);
 
         LinkedList<Integer> history = new LinkedList<>();
-
         long startTime = System.currentTimeMillis();
 
         while (System.currentTimeMillis() - startTime < 7000) {
@@ -181,7 +204,6 @@ public class FishingBot {
         return false;
     }
 
-
     public static Mat bufferedImageToMat(BufferedImage bi) {
         if (bi.getType() != BufferedImage.TYPE_3BYTE_BGR) {
             BufferedImage convertedImg = new BufferedImage(bi.getWidth(), bi.getHeight(), BufferedImage.TYPE_3BYTE_BGR);
@@ -196,6 +218,7 @@ public class FishingBot {
         mat.put(0, 0, data);
         return mat;
     }
+
     public static void smoothMouseMove(Robot robot, int startX, int startY, int endX, int endY, int steps,
                                        int minDelay, int maxDelay) throws InterruptedException {
         double dx = (double) (endX - startX) / steps;
