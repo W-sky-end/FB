@@ -14,18 +14,17 @@ import java.io.File;
 import java.util.*;
 import java.util.List;
 
-import static java.lang.Thread.sleep;
-
 public class FishingBot {
 
     static {
-        System.load("C:\\Users\\opencv\\build\\java\\x64\\opencv_java454.dll");
+        System.load("C:\\Users\\aonyk\\Downloads\\opencv\\build\\java\\x64\\opencv_java454.dll");
     }
 
     public static void main(String[] args) throws Exception {
         Robot robot = new Robot();
         Random random = new Random();
-        String bobberFolderPath = "C://Users/FB/src/main/resources/bobbers/";
+        String bobberFolderPath = "C://Users/aonyk/wskyprjct/Lessons/FB/src/main/resources/bobbers/";
+        List<Mat> splashTemplates = loadBobberTemplatesFromFolder("C://Users/aonyk/wskyprjct/Lessons/FB/src/main/resources/splashes/");
 
         List<Mat> templates = loadBobberTemplatesFromFolder(bobberFolderPath);
         if (templates.isEmpty()) {
@@ -33,61 +32,60 @@ public class FishingBot {
             return;
         }
 
-        boolean running = true;
+        Rectangle fishingArea = new Rectangle(426, 160, 940, 400); // 🔴 красная рамка
 
-        while (running) {
+        while (true) {
             long startTime = System.currentTimeMillis();
             Point bobberPoint = null;
 
             while (System.currentTimeMillis() - startTime < 10_000 && bobberPoint == null) {
-                Thread.sleep(500 + random.nextInt(700)); //
-                BufferedImage screen = robot.createScreenCapture(new Rectangle(Toolkit.getDefaultToolkit().getScreenSize()));
+                Thread.sleep(500 + random.nextInt(700));
+                BufferedImage screen = robot.createScreenCapture(fishingArea);
                 Mat screenMat = bufferedImageToMat(screen);
                 Mat filtered = filterWaterColor(screenMat);
 
-                bobberPoint = findBobber(filtered, templates);
-
-                if (bobberPoint != null) {
-                    System.out.println("Поплавок найден в: " + bobberPoint);
-                    Thread.sleep(800 + random.nextInt(500)); //todo рандом перед нахождением поплавка(человеческий фактор)
-
-                    if (detectRealBite(robot, bobberPoint)) {
-                        if (random.nextInt(10) == 0) {
-                            System.out.println("Задумался.");
-                            Thread.sleep(889 + random.nextInt(1250)); // задумался
-                        }
-                        if (random.nextInt(15) == 0) {
-                            System.out.println("Пропускаю клёв ."); // отвлекся
-                        } else {
-                            System.out.println("Клёв! Выполняю подсечку...");
-                            java.awt.Point currentMouse = MouseInfo.getPointerInfo().getLocation();
-                            smoothMouseMove(robot,
-                                    (int) currentMouse.getX(), (int) currentMouse.getY(),
-                                    (int) bobberPoint.x, (int) bobberPoint.y,
-                                    20, 5, 10); // 20 скорость курсора
-                            robot.mousePress(InputEvent.BUTTON3_DOWN_MASK); // todo Button1 & Button3 (Актуал/Ката)
-                            robot.mouseRelease(InputEvent.BUTTON3_DOWN_MASK);
-                            Thread.sleep(2494 + random.nextInt(1400)); //заброс
-                        }
-                        if (random.nextInt(20) == 0) {
-                            System.out.println("Чуть-чуть двигаю камерой как игрок...");
-                            robot.keyPress(KeyEvent.VK_RIGHT); // кнопка движения камеры
-                            Thread.sleep(100 + random.nextInt(300));
-                            robot.keyRelease(KeyEvent.VK_RIGHT);
-                        }
-
-                        System.out.println("Забрасываю удочку ...");
-                        robot.keyPress(KeyEvent.VK_E);
-                        robot.keyRelease(KeyEvent.VK_E);
-                        Thread.sleep(3000 + new Random().nextInt(2000)); // todo Пауза перед сканом
-                    }
-                } else {
-                    System.out.println("Поплавок не найден за 10 секунд. Закидываю удочку заново клавишей E...");
-                    robot.keyPress(KeyEvent.VK_E);
-                    robot.keyRelease(KeyEvent.VK_E);
-                    Thread.sleep(4000 + random.nextInt(2000));
-                }
+                bobberPoint = findBobber(filtered, templates, fishingArea);
             }
+
+            if (bobberPoint == null) {
+                System.out.println("Поплавок не найден за 10 секунд. Закидываю удочку заново клавишей E...");
+                robot.keyPress(KeyEvent.VK_E);
+                robot.keyRelease(KeyEvent.VK_E);
+                Thread.sleep(10000 + random.nextInt(2000));
+                continue;
+            }
+
+            System.out.println("Поплавок найден в: " + bobberPoint);
+            Thread.sleep(800 + random.nextInt(500));
+
+            boolean bite = detectRealBite(robot, bobberPoint, splashTemplates);
+
+            if (bite) {
+                if (random.nextInt(10) == 0) {
+                    System.out.println("Задумался.");
+                    Thread.sleep(889 + random.nextInt(1250));
+                }
+                if (random.nextInt(15) == 0) {
+                    System.out.println("Пропускаю клёв.");
+                } else {
+                    System.out.println("Клёв! Выполняю подсечку...");
+                    java.awt.Point currentMouse = MouseInfo.getPointerInfo().getLocation();
+                    smoothMouseMove(robot,
+                            (int) currentMouse.getX(), (int) currentMouse.getY(),
+                            (int) bobberPoint.x, (int) bobberPoint.y,
+                            20, 5, 10);
+                    robot.mousePress(InputEvent.BUTTON3_DOWN_MASK);
+                    robot.mouseRelease(InputEvent.BUTTON3_DOWN_MASK);
+                    Thread.sleep(2494 + random.nextInt(1400));
+                }
+            } else {
+                System.out.println("Перезакидываю удочку (клёва не было)...");
+            }
+
+            System.out.println("Забрасываю удочку ...");
+            robot.keyPress(KeyEvent.VK_E);
+            robot.keyRelease(KeyEvent.VK_E);
+            Thread.sleep(3000 + random.nextInt(2000));
         }
     }
 
@@ -111,28 +109,45 @@ public class FishingBot {
         return templates;
     }
 
-    public static Point findBobber(Mat screen, List<Mat> templates) {
+    // 🔹 Улучшенный поиск поплавка с масштабированием (5 размеров)
+    public static Point findBobber(Mat screen, List<Mat> templates, Rectangle offset) {
         double bestMatchVal = 0;
         Point bestPoint = null;
 
+        // коэффициенты масштабирования
+        double[] scales = {0.6, 0.8, 1.0, 1.2, 1.4};
+
         for (Mat template : templates) {
-            int resultCols = screen.cols() - template.cols() + 1;
-            int resultRows = screen.rows() - template.rows() + 1;
+            for (double scale : scales) {
+                Mat resized = new Mat();
+                Size newSize = new Size(template.width() * scale, template.height() * scale);
+                Imgproc.resize(template, resized, newSize);
 
-            if (resultCols <= 0 || resultRows <= 0) continue;
+                int resultCols = screen.cols() - resized.cols() + 1;
+                int resultRows = screen.rows() - resized.rows() + 1;
 
-            Mat result = new Mat(resultRows, resultCols, CvType.CV_32FC1);
-            Imgproc.matchTemplate(screen, template, result, Imgproc.TM_CCOEFF_NORMED);
+                if (resultCols <= 0 || resultRows <= 0) continue;
 
-            Core.MinMaxLocResult mmr = Core.minMaxLoc(result);
+                Mat result = new Mat(resultRows, resultCols, CvType.CV_32FC1);
+                Imgproc.matchTemplate(screen, resized, result, Imgproc.TM_CCOEFF_NORMED);
 
-            if (mmr.maxVal > bestMatchVal && mmr.maxVal >= 0.5) {
-                bestMatchVal = mmr.maxVal;
-                bestPoint = new Point(
-                        mmr.maxLoc.x + (double) template.width() / 2,
-                        mmr.maxLoc.y + (double) template.height() / 2
-                );
+                Core.MinMaxLocResult mmr = Core.minMaxLoc(result);
+
+                if (mmr.maxVal > bestMatchVal && mmr.maxVal >= 0.33) {
+                    bestMatchVal = mmr.maxVal;
+                    bestPoint = new Point(
+                            mmr.maxLoc.x + resized.width() / 2.0 + offset.x,
+                            mmr.maxLoc.y + resized.height() / 2.0 + offset.y
+                    );
+                }
+
+                resized.release();
+                result.release();
             }
+        }
+
+        if (bestPoint != null) {
+            System.out.println("🎯 Поплавок найден! Совпадение: " + bestMatchVal);
         }
 
         return bestPoint;
@@ -141,26 +156,18 @@ public class FishingBot {
     public static Mat filterWaterColor(Mat image) {
         Mat hsv = new Mat();
         Imgproc.cvtColor(image, hsv, Imgproc.COLOR_BGR2HSV);
-
         Scalar lower = new Scalar(80, 50, 50);
         Scalar upper = new Scalar(140, 255, 255);
-
         Mat mask = new Mat();
         Core.inRange(hsv, lower, upper, mask);
-
         Mat result = new Mat();
         Core.bitwise_not(mask, mask);
         image.copyTo(result, mask);
-
         return result;
     }
 
-    public static boolean detectRealBite(Robot robot, Point bobberPoint) throws InterruptedException {
-        Rectangle splashZone = new Rectangle(
-                (int) bobberPoint.x - 40,
-                (int) bobberPoint.y - 40,
-                80, 80
-        );
+    public static boolean detectRealBite(Robot robot, Point bobberPoint, List<Mat> splashTemplates) throws InterruptedException {
+        Rectangle splashZone = new Rectangle((int) bobberPoint.x - 40, (int) bobberPoint.y - 40, 80, 80);
 
         Mat prevFrame = bufferedImageToMat(robot.createScreenCapture(splashZone));
         Mat grayPrev = new Mat();
@@ -168,31 +175,56 @@ public class FishingBot {
 
         LinkedList<Integer> history = new LinkedList<>();
         long startTime = System.currentTimeMillis();
+        int zeroStreak = 0;
 
-        while (System.currentTimeMillis() - startTime < 7000) {
-            sleep(150);
+        while (System.currentTimeMillis() - startTime < 20000) {
+            Thread.sleep(150);
 
             Mat currentFrame = bufferedImageToMat(robot.createScreenCapture(splashZone));
             Mat grayCurrent = new Mat();
             Imgproc.cvtColor(currentFrame, grayCurrent, Imgproc.COLOR_BGR2GRAY);
 
+            // 🔹 1. Проверка по шаблонам всплесков
+            if (detectSplash(currentFrame, splashTemplates, 0.35)) {
+                System.out.println("🎣 КЛЁВ !!! (по шаблону всплесков)");
+                Thread.sleep(800 + new Random().nextInt(400));
+                return true;
+            }
+
+            // 🔹 2. Старый способ (разница кадров)
             Mat diff = new Mat();
             Core.absdiff(grayPrev, grayCurrent, diff);
 
-            Imgproc.threshold(diff, diff, 30, 255, Imgproc.THRESH_BINARY);
-            int nonZeroCount = Core.countNonZero(diff);
+            Scalar mean = Core.mean(diff);
+            double dynamicThreshold = Math.max(15, mean.val[0] * 2.0);
+            Imgproc.threshold(diff, diff, dynamicThreshold, 255, Imgproc.THRESH_BINARY);
 
+            Imgproc.morphologyEx(diff, diff, Imgproc.MORPH_OPEN,
+                    Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(3, 3)));
+
+            int nonZeroCount = Core.countNonZero(diff);
             history.add(nonZeroCount);
-            if (history.size() > 5) history.removeFirst();
+            if (history.size() > 6) history.removeFirst();
 
             System.out.println("Всплесков: " + nonZeroCount);
 
+            if (nonZeroCount == 0) {
+                zeroStreak++;
+                if (zeroStreak >= 50) {
+                    System.out.println("❌ Поплавок затих — перезакидываю...");
+                    return false;
+                }
+            } else {
+                zeroStreak = 0;
+            }
+
             if (history.size() >= 3) {
-                int avgBefore = (history.get(0) + history.get(1)) / 2;
+                int avg = (history.get(0) + history.get(1) + history.get(2)) / 3;
                 int now = history.getLast();
 
-                if (now > avgBefore * 2 && now > 660) { // TODO подгонять под локацию
-                    System.out.println(" КЛЁВ !!! Всплесков: " + now);
+                if (now > avg * 2 && now > 230) {
+                    System.out.println("🎣 КЛЁВ !!! (по разнице кадров)");
+                    Thread.sleep(1000 + new Random().nextInt(200));
                     return true;
                 }
             }
@@ -232,5 +264,23 @@ public class FishingBot {
             robot.mouseMove(x, y);
             Thread.sleep(minDelay + random.nextInt(maxDelay - minDelay + 1));
         }
+    }
+
+    public static boolean detectSplash(Mat frame, List<Mat> splashTemplates, double threshold) {
+        for (Mat template : splashTemplates) {
+            int resultCols = frame.cols() - template.cols() + 1;
+            int resultRows = frame.rows() - template.rows() + 1;
+
+            if (resultCols <= 0 || resultRows <= 0) continue;
+
+            Mat result = new Mat(resultRows, resultCols, CvType.CV_32FC1);
+            Imgproc.matchTemplate(frame, template, result, Imgproc.TM_CCOEFF_NORMED);
+
+            Core.MinMaxLocResult mmr = Core.minMaxLoc(result);
+            if (mmr.maxVal >= threshold) {
+                return true;
+            }
+        }
+        return false;
     }
 }
