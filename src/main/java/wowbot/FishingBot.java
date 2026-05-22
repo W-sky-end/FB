@@ -19,58 +19,59 @@ public class FishingBot {
     /* =============================  CONFIG  ============================= */
 
     // OpenCV
-    private static final String OPENCV_DLL_PATH = "C:\\Users\\...\\opencv\\build\\java\\x64\\opencv_java454.dll";
+    private static final String OPENCV_DLL_PATH = "C:\\Users\\aonyk\\Downloads\\opencv\\build\\java\\x64\\opencv_java454.dll";
 
     // Папки ресурсов
-    private static final String BOBBER_FOLDER  = "C://Users/.../Lessons/FB/src/main/resources/bobbers/";
-    private static final String SPLASH_FOLDER  = "C://Users/.../Lessons/FB/src/main/resources/splashes/";
+    private static final String BOBBER_FOLDER = "C://Users/aonyk/wskyprjct/Lessons/FB/src/main/resources/bobbers/";
+    private static final String SPLASH_FOLDER = "C://Users/aonyk/wskyprjct/Lessons/FB/src/main/resources/splashes/";
 
     // Область поиска поплавка (x, y, width, height)
     private static final Rectangle FISHING_AREA = new Rectangle(550, 300, 550, 350);
+    // Пороговые значенияr
+    private static final double BOBBER_THRESHOLD = 0.3; // чувствительность поиска поплавка
+    private static final double SPLASH_THRESHOLD = 0.595; // чувстreeвительносeть распознавания всплеска         //55/60e - для хантерлендску
+    private static final double DIFF_MULTIPLIER = 1.9;   // множитель динамического порога (разница кадров)   //1.9
+    private static final int DIFF_MIN_PIXELS = 307;//минимум "белых" пикселей для фиксации клёва
 
-    // Пороговые значения
-    private static final double BOBBER_THRESHOLD = 0.6;  // чувствительность поиска поплавка
-    private static final double SPLASH_THRESHOLD = 0.535;  // чувствительность распознавания всплеска
-    private static final double DIFF_MULTIPLIER  = 1.9;   // множитель динамического порога (разница кадров)
-    private static final int    DIFF_MIN_PIXELS  = 310;    // минимум "белых" пикселей для фиксации клёва
+    // Масштабы для matchemplate (под разные дистанции)
+    private static final double[] TEMPLATE_SCALES = {0.3, 0.5, 0.7, 0.9, 1.0, 1.1, 1.3, 1.5, 1.7};
 
-    // Масштабы для matchTemplate (под разные дистанции)
-    private static final double[] TEMPLATE_SCALES = {0.5, 0.7, 0.9, 1.0, 1.1, 1.3, 1.5};
-
-    // История и анти-залипание (для diff)
-    private static final int HISTORY_LEN        = 6;    // длина истории nonZeroCount
-    private static final int ZERO_STREAK_LIMIT  = 100;  // сколько подряд нулей до перезакида
+    // История и анти-залипание (для diff)к
+    private static final int HISTORY_LEN = 6;    // длина истории noenZeroCounter
+    private static final int ZERO_STREAK_LIMIT = 100;  // скоклько подряд нулей до перезакида
 
     // Тайминги
     private static final int SEARCH_BOBBER_TIMEOUT = 10_000;  // макс. время поиска поплавка
-    private static final int CAST_DELAY_MIN        = 3_000;   // задержка после заброса (min)
-    private static final int CAST_DELAY_MAX        = 5_000;   // задержка после заброса (max)
-    private static final int CHECK_INTERVAL        = 70;      // период опроса (мс)
-    private static final int REACTION_DELAY        = 100;     // микрозадержка перед подсечкой
-    private static final int FAIL_SAFE_TIMEOUT     = 20_000;  // потолок ожидания клёва (мс)
+    private static final int CAST_DELAY_MIN = 3_000;   // задержка после заброса (min)
+    private static final int CAST_DELAY_MAX = 5_000;   // задержка после заброса (max)r
+    private static final int CHECK_INTERVAL = 70;      // период опроса (мс)
+    private static final int REACTION_DELAY = 100;     // микрозадержка перед подсечкой
+    private static final int FAIL_SAFE_TIMEOUT = 20_000;  // потолок ожидания клёва (мс)
 
     // Фильтр воды (HSV)
     private static final Scalar WATER_HSV_LOWER = new Scalar(80, 50, 50);
     private static final Scalar WATER_HSV_UPPER = new Scalar(140, 255, 255);
 
     // Авто-приманка
-    private static final boolean ENABLE_BAIT   = true;
-    private static final int     BAIT_INTERVAL_MS = 5 * 60 * 1000; // каждые 5 минут
-    private static final int     BAIT_WAIT_MS     = 10_000;         // ждём после клика
-    private static final int     BAIT_X = 720;  // ← подставь свои координаты слота приманки
-    private static final int     BAIT_Y = 1050; // ← подставь свои координаты слота приманки
-    private static final int     BAIT_KEY = KeyEvent.VK_R; // что нажать перед кликом (если нужно открыть меню)
+    private static final boolean ENABLE_BAIT = true;
+    private static final int BAIT_INTERVAL_MS = 10 * 60 * 1000; // каждые 5 минут
+    private static final int BAIT_WAIT_MS = 10_000;         // ждём после клика
+    private static final int BAIT_X = 720;  // ← подставь свои координаты слота приманки
+    private static final int BAIT_Y = 1050; // ← подставь свои координаты слота приманки
+    private static final int BAIT_KEY = KeyEvent.VK_R; // что нажать перед кликом (если нужно открыть меню)e
 
     /* =================================================================== */
 
-    static { System.load(OPENCV_DLL_PATH); }
+    static {
+        System.load(OPENCV_DLL_PATH);
+    }
 
     public static void main(String[] args) throws Exception {
         Robot robot = new Robot();
         Random rnd = new Random();
 
-        List<Mat> bobberTemplates  = loadTemplatesFromFolder(BOBBER_FOLDER);
-        List<Mat> splashTemplates  = loadTemplatesFromFolder(SPLASH_FOLDER);
+        List<Mat> bobberTemplates = loadTemplatesFromFolder(BOBBER_FOLDER);
+        List<Mat> splashTemplates = loadTemplatesFromFolder(SPLASH_FOLDER);
 
         if (bobberTemplates.isEmpty()) {
             System.err.println("❌ Нет шаблонов поплавка в: " + BOBBER_FOLDER);
@@ -95,8 +96,8 @@ public class FishingBot {
                 Thread.sleep(500 + rnd.nextInt(700));
                 BufferedImage screen = robot.createScreenCapture(FISHING_AREA);
                 Mat screenMat = bufferedImageToMat(screen);
-                Mat filtered  = filterWaterColor(screenMat);
-                bobberPoint   = findBobber(filtered, bobberTemplates, FISHING_AREA);
+                Mat filtered = filterWaterColor(screenMat);
+                bobberPoint = findBobber(filtered, bobberTemplates, FISHING_AREA);
             }
 
             if (bobberPoint == null) {
@@ -113,11 +114,13 @@ public class FishingBot {
             boolean bite = detectRealBite(robot, bobberPoint, splashTemplates);
 
             if (bite) {
-                if (rnd.nextInt(10) == 0) { Thread.sleep(889 + rnd.nextInt(1250)); }
+                if (rnd.nextInt(10) == 0) {
+                    Thread.sleep(889 + rnd.nextInt(1250));
+                }
                 if (rnd.nextInt(15) != 0) {
                     System.out.println("✅ Подсечка!");
                     java.awt.Point cur = MouseInfo.getPointerInfo().getLocation();
-                    smoothMouseMove(robot, (int)cur.getX(), (int)cur.getY(), (int)bobberPoint.x, (int)bobberPoint.y, 20,5,10);
+                    smoothMouseMove(robot, (int) cur.getX(), (int) cur.getY(), (int) bobberPoint.x, (int) bobberPoint.y, 20, 5, 10);
                     rightClick(robot);
                     Thread.sleep(2_494 + rnd.nextInt(1_400));
                 } else {
@@ -137,7 +140,10 @@ public class FishingBot {
     /* ========================  Приманка  ======================== */
     private static void applyBait(Robot robot) throws InterruptedException {
         System.out.println("🪝 Обновляю приманку...");
-        if (BAIT_KEY != -1) { pressKey(robot, BAIT_KEY); Thread.sleep(400); }
+        if (BAIT_KEY != -1) {
+            pressKey(robot, BAIT_KEY);
+            Thread.sleep(400);
+        }
         robot.mouseMove(BAIT_X, BAIT_Y);
         leftClick(robot);
         Thread.sleep(BAIT_WAIT_MS);
@@ -214,17 +220,23 @@ public class FishingBot {
     }
 
     private static class MatchCandidate {
-        Point point; double score;
-        MatchCandidate(Point p,double s){ point=p; score=s; }
+        Point point;
+        double score;
+
+        MatchCandidate(Point p, double s) {
+            point = p;
+            score = s;
+        }
     }
 
     /* =====================  Клёв (детект)  ===================== */
 
     private static boolean detectRealBite(Robot robot, Point bobberPoint, List<Mat> splashTemplates) throws InterruptedException {
-        Rectangle zone = new Rectangle((int)bobberPoint.x - 40, (int)bobberPoint.y - 40, 80, 80);
+        Rectangle zone = new Rectangle((int) bobberPoint.x - 40, (int) bobberPoint.y - 40, 80, 80);
 
         Mat prev = bufferedImageToMat(robot.createScreenCapture(zone));
-        Mat grayPrev = new Mat(); Imgproc.cvtColor(prev, grayPrev, Imgproc.COLOR_BGR2GRAY);
+        Mat grayPrev = new Mat();
+        Imgproc.cvtColor(prev, grayPrev, Imgproc.COLOR_BGR2GRAY);
 
         LinkedList<Integer> hist = new LinkedList<>();
         long start = System.currentTimeMillis();
@@ -234,7 +246,8 @@ public class FishingBot {
             Thread.sleep(CHECK_INTERVAL);
 
             Mat cur = bufferedImageToMat(robot.createScreenCapture(zone));
-            Mat grayCur = new Mat(); Imgproc.cvtColor(cur, grayCur, Imgproc.COLOR_BGR2GRAY);
+            Mat grayCur = new Mat();
+            Imgproc.cvtColor(cur, grayCur, Imgproc.COLOR_BGR2GRAY);
 
             // 1) По шаблонам всплесков
             if (detectSplash(cur, splashTemplates, SPLASH_THRESHOLD)) {
@@ -249,11 +262,14 @@ public class FishingBot {
             }
 
             // 2) По движению
-            Mat diff = new Mat(); Core.absdiff(grayPrev, grayCur, diff);
+            Mat diff = new Mat();
+            Core.absdiff(grayPrev, grayCur, diff);
             Scalar mean = Core.mean(diff);
             double thr = Math.max(15, mean.val[0] * DIFF_MULTIPLIER);
             Imgproc.threshold(diff, diff, thr, 255, Imgproc.THRESH_BINARY);
             int nonZero = Core.countNonZero(diff);
+
+            System.out.println("В: " + nonZero);
 
             hist.add(nonZero);
             if (hist.size() > HISTORY_LEN) hist.removeFirst();
@@ -283,19 +299,27 @@ public class FishingBot {
     /* =======================  Утилиты  ======================= */
 
     private static Mat filterWaterColor(Mat img) {
-        Mat hsv=new Mat(); Imgproc.cvtColor(img,hsv,Imgproc.COLOR_BGR2HSV);
-        Mat mask=new Mat(); Core.inRange(hsv, WATER_HSV_LOWER, WATER_HSV_UPPER, mask);
-        Mat out=new Mat(); Core.bitwise_not(mask,mask); img.copyTo(out,mask); return out;
+        Mat hsv = new Mat();
+        Imgproc.cvtColor(img, hsv, Imgproc.COLOR_BGR2HSV);
+        Mat mask = new Mat();
+        Core.inRange(hsv, WATER_HSV_LOWER, WATER_HSV_UPPER, mask);
+        Mat out = new Mat();
+        Core.bitwise_not(mask, mask);
+        img.copyTo(out, mask);
+        return out;
     }
 
     private static Mat bufferedImageToMat(BufferedImage bi) {
         if (bi.getType() != BufferedImage.TYPE_3BYTE_BGR) {
             BufferedImage c = new BufferedImage(bi.getWidth(), bi.getHeight(), BufferedImage.TYPE_3BYTE_BGR);
-            Graphics2D g = c.createGraphics(); g.drawImage(bi,0,0,null); g.dispose(); bi = c;
+            Graphics2D g = c.createGraphics();
+            g.drawImage(bi, 0, 0, null);
+            g.dispose();
+            bi = c;
         }
         byte[] data = ((DataBufferByte) bi.getRaster().getDataBuffer()).getData();
         Mat mat = new Mat(bi.getHeight(), bi.getWidth(), CvType.CV_8UC3);
-        mat.put(0,0,data);
+        mat.put(0, 0, data);
         return mat;
     }
 
@@ -311,12 +335,31 @@ public class FishingBot {
         return false;
     }
 
-    private static void smoothMouseMove(Robot r,int sx,int sy,int ex,int ey,int steps,int minDelay,int maxDelay) throws InterruptedException {
-        double dx=(double)(ex-sx)/steps, dy=(double)(ey-sy)/steps; Random rnd=new Random();
-        for(int i=1;i<=steps;i++){ r.mouseMove((int)(sx+dx*i),(int)(sy+dy*i)); Thread.sleep(minDelay + rnd.nextInt(Math.max(1,maxDelay-minDelay+1))); }
+
+
+
+    private static void smoothMouseMove(Robot r, int sx, int sy, int ex, int ey, int steps, int minDelay, int maxDelay) throws InterruptedException {
+        double dx = (double) (ex - sx) / steps, dy = (double) (ey - sy) / steps;
+        Random rnd = new Random();
+        for (int i = 1; i <= steps; i++) {
+            r.mouseMove((int) (sx + dx * i), (int) (sy + dy * i));
+            Thread.sleep(minDelay + rnd.nextInt(Math.max(1, maxDelay - minDelay + 1)));
+        }
     }
-    private static void leftClick(Robot r){ r.mousePress(InputEvent.BUTTON1_DOWN_MASK); r.mouseRelease(InputEvent.BUTTON1_DOWN_MASK); }
-    private static void rightClick(Robot r){ r.mousePress(InputEvent.BUTTON3_DOWN_MASK); r.mouseRelease(InputEvent.BUTTON3_DOWN_MASK); }
-    private static void pressKey(Robot r,int key){ r.keyPress(key); r.keyRelease(key); }
+
+    private static void leftClick(Robot r) {
+        r.mousePress(InputEvent.BUTTON1_DOWN_MASK);
+        r.mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
+    }
+
+    private static void rightClick(Robot r) {
+        r.mousePress(InputEvent.BUTTON3_DOWN_MASK);
+        r.mouseRelease(InputEvent.BUTTON3_DOWN_MASK);
+    }
+
+    private static void pressKey(Robot r, int key) {
+        r.keyPress(key);
+        r.keyRelease(key);
+    }
 }
 
